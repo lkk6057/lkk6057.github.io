@@ -1,0 +1,541 @@
+<style>
+canvas,p {
+    padding-left: 0;
+    padding-right: 0;
+    margin-left: auto;
+    margin-right: auto;
+    display: block;
+    opacity: 1;
+}
+    .background{
+        background-color: #D6EAF8;
+    }
+    .hud{
+        color:black;
+    }
+</style>
+<body class = "background">
+<canvas id = "canvas" width = 1200 height = 800 style="border:1px solid #000000;"></canvas>
+<p id="HUD" class = "hud"></p>
+</body>
+<script>
+
+var delay = 7;
+var centerx = (canvas.width/2);
+var centery = (canvas.height/2);
+var draw = canvas.getContext("2d");
+var mouseDown = false;
+var started = false;
+draw.font = "100px Arial";
+draw.textAlign = "center";
+draw.fillText("Press Any Key to Start",canvas.width/2,canvas.height/2);
+window.addEventListener('keyup', function(event) { Key.onKeyup(event); }, false);
+window.addEventListener('keydown', function(event) { Key.onKeydown(event); }, false);
+canvas.addEventListener("mousemove",function(event){setRotation(event.clientX,event.clientY)})
+window.addEventListener("mousedown",function(event){mouseDown = true; if(!started){started = true; update();}})
+window.addEventListener("mouseup",function(event){mouseDown = false;})
+var Bound = {
+UP: 800,
+DOWN: 800,
+LEFT: 800,
+RIGHT: 800,
+WIDTH: 2000,
+COLOR: "#00FF00",
+draw: function(){
+var mouseRotation = 0;
+var halfWidth = this.WIDTH/2
+draw.strokeStyle = this.COLOR;
+draw.lineWidth = this.WIDTH;
+draw.beginPath();
+draw.moveTo(-this.LEFT+centerx-Player.x-halfWidth,-this.UP+centery-Player.y-halfWidth);
+draw.lineTo(this.RIGHT+centerx-Player.x+halfWidth,-this.UP+centery-Player.y-halfWidth);
+draw.lineTo(this.RIGHT+centerx-Player.x+halfWidth,this.DOWN+centery-Player.y+halfWidth);
+draw.lineTo(-this.LEFT+centerx-Player.x-halfWidth,this.DOWN+centery-Player.y+halfWidth);
+draw.lineTo(-this.LEFT+centerx-Player.x-halfWidth,-this.UP+centery-Player.y-halfWidth);
+draw.stroke();
+}
+};
+var Key = {
+  _pressed: {},
+
+  LEFT: 65,
+  UP: 87,
+  RIGHT: 68,
+  DOWN: 83,
+  SPACE: 32,
+  fire: function(){
+  if(Key.isDown(this.SPACE)||mouseDown){
+  return true;
+  }
+  else{
+  return false;
+  }
+  },
+  isDown: function(keyCode) {
+    return this._pressed[keyCode];
+  },
+  
+  onKeydown: function(event) {
+    this._pressed[event.keyCode] = true;
+	if(!started){
+	update();
+	started = true;
+	}
+  },
+  
+  onKeyup: function(event) {
+    delete this._pressed[event.keyCode];
+  }
+};
+var Player={
+hp: 100,
+maxhp: 100,
+invincibility: 0,
+x: 0,
+y: 0,
+realspeed: 800*(delay/1000),
+width: 80,
+height: 80,
+color: 	"#0000FF",
+draw: function(){
+draw.fillStyle = this.color;
+draw.fillRect(centerx-(this.width/2),centery-(this.height/2),this.width,this.height);
+},
+drawHp: function(){
+draw.fillStyle = "#0fb7ff";
+draw.fillRect((centerx-(this.width/2)),(centery-(this.height/2))-(this.height/5),(this.hp/this.maxhp)*this.width,5);
+draw.fillStyle = "#363636";
+draw.fillRect((centerx-(this.width/2))+this.width*(this.hp/this.maxhp),(centery-(this.height/2))-(this.height/5),this.width*((this.maxhp-this.hp)/this.maxhp),5);
+},
+checkEnemyCollision: function(){
+for(var i =0;i<Enemies.length;i++){
+if(checkCollision(this.x,this.y,this.width,this.height,Enemies[i].x,Enemies[i].y,Enemies[i].width,Enemies[i].height)&&this.invincibility<=0){
+this.invincibility=250;
+this.damage(Enemies[i].hit);
+}
+}
+if(this.invincibility>delay){
+this.invincibility-=delay;
+}
+else{
+this.invincibility=0;
+}
+},
+damage: function(hit){
+if(this.hp>=hit){
+this.hp-=hit;
+}
+else{
+this.hp=0;
+gameOver();
+}
+}
+};
+function Notify(text) {
+Message.text=text;
+Message.opacity=1.0;
+}
+var Message = {
+opacity: 0,
+text: "",
+draw: function(){
+draw.font = "bold 100px Arial";
+draw.fillStyle = "rgba(0, 0, 0, " + this.opacity + ")";
+draw.textAlign = "center";
+draw.fillText(this.text,canvas.width/2,canvas.height/2);
+if(this.opacity>delay/1000){
+this.opacity-=(delay/1000)
+}
+else{
+this.opacity=0;
+}
+}
+};
+function Weapon(name,cooldown){
+this.name = name;
+this.cooldown = cooldown;
+}
+var Enemies = [];
+var Bullets = [];
+var Weapons = [new Weapon("Pistol",200),new Weapon("Shotgun",350),new Weapon("Gamma Ray",1),new Weapon("Sniper Rifle",1000),new Weapon("Machinegun",50)];
+var WeaponDrops = [];
+var WeaponManager = {
+ActiveWeapon: 0,
+cooldown: 0,
+sindex: 0,
+WeaponTime: 0,
+tick: function(){
+if(this.cooldown>delay){
+this.cooldown=this.cooldown-delay;
+}
+else{
+this.cooldown = 0;
+if(Key.fire()){
+this.fire();
+}
+}
+if(this.WeaponTime>delay){
+this.WeaponTime-=delay;
+}
+else{
+this.WeaponTime = 0;
+this.ActiveWeapon=0;
+}
+},
+fire: function() {
+switch(this.ActiveWeapon){
+case 0:
+Bullets.push(new SquareBullet(Player.x,Player.y,2000*(delay/1000),20,"#FFFF00",mouseRotation,35));
+break;
+case 1:
+for(var i = 0;i<16;i++){
+Bullets.push(new SquareBullet(Player.x,Player.y,1500*(delay/1000),10,"#FFFF00",mouseRotation-0.5+Math.random(),15));
+}
+break;
+case 2:
+Bullets.push(new SquareBullet(Player.x,Player.y,1500*(delay/1000),25,"#3EFF3E",mouseRotation+Math.sin(this.sindex)/4,3));
+Bullets.push(new SquareBullet(Player.x,Player.y,1500*(delay/1000),25,"#00FFFF",mouseRotation+-Math.sin(this.sindex)/4,3));
+this.sindex+=35*(delay/1000);
+break;
+case 3:
+Bullets.push(new SquareBullet(Player.x,Player.y,2000*(delay/1000),30,"#FFFF00",mouseRotation,80,true));
+break;
+case 4:
+Bullets.push(new SquareBullet(Player.x,Player.y,3000*(delay/1000),15,"#F1EA00",mouseRotation,25));
+break;
+}
+this.cooldown=Weapons[this.ActiveWeapon].cooldown;
+}
+};
+function WeaponDrop(id,x,y){
+this.id = id;
+this.x = x;
+this.y = y;
+this.maxtime = 5000+(Math.random()*10000);
+this.time = this.maxtime;
+this.radius = 100;
+}
+WeaponDrop.prototype.draw = function(){
+draw.font = "40px Arial";
+draw.fillStyle = "rgba(0, 0, 0, "+this.time/this.maxtime+")";
+draw.fillText(Weapons[this.id].name,centerx-Player.x+this.x,centery-Player.y+this.y);
+if(this.time>delay){
+this.time-=delay;
+}
+else{
+this.destroy();
+}
+this.checkCollision();
+}
+WeaponDrop.prototype.checkCollision = function(){
+if(Math.sqrt(Math.pow(Player.x-this.x,2)+Math.pow(Player.y-this.y,2))<=this.radius){
+WeaponManager.ActiveWeapon=this.id;
+WeaponManager.WeaponTime=10000+(Math.random()*10000);
+this.destroy();
+}
+}
+WeaponDrop.prototype.destroy = function(){
+WeaponDrops.splice(WeaponDrops.findIndex((x)=>x==this),1);
+}
+function setRotation(x,y){
+var rect = canvas.getBoundingClientRect();
+var canvasX = x-rect.left;
+var canvasY = y-rect.top;
+mouseRotation = Math.atan2(canvasY-centery, canvasX-centerx);
+}
+var EnemyManager = {
+Spawn: function(type,x,y){
+switch(type){
+case "NORMAL":
+Enemies.push(new Enemy(x,y,400,80,80,"#FF0000",100,20,"Zombo"));
+break;
+case "WIDE":
+Enemies.push(new Enemy(x,y,250,200,100,"#ff3300",200,45,"Wide Boi"));
+break;
+case "THICK":
+Enemies.push(new Enemy(x,y,150,200,200,"#800000",500,60,"Thick"));
+break;
+}
+}
+};
+var SpawnManager = {
+elapsed: 0,
+wave: 0,
+pending: 3000,
+nextWeapon: Math.random()*10000,
+tick: function(time){
+this.elapsed += time;
+if(this.nextWeapon>delay){
+this.nextWeapon-=delay;
+}
+else{
+this.nextWeapon=10000+Math.random()*15000;
+this.spawnWeapon();
+}
+},
+spawnWeapon: function(){
+var roll = Math.random()*350;
+var wepindex = 0;
+if(roll<=100){
+wepindex=1;
+//Shotgun
+}
+else if(roll>100&&roll<=200){
+wepindex=3;
+//Sniper Rifle
+}
+else if(roll>200&&roll<=300){
+wepindex=4;
+//Machinegun
+}
+else if(roll>300&&roll<=350){
+wepindex=2;
+//Gamme Ray
+}
+else{
+wepindex = 1+Math.floor(Math.random()*(Weapons.length-1));
+}
+var x = (Math.random()*(Bound.RIGHT*2))-Bound.RIGHT;
+var y = (Math.random()*(Bound.DOWN*2))-Bound.DOWN;
+while(Math.sqrt(Math.pow(Player.x-x,2)+Math.pow(Player.y-y,2))<300){
+x= (Math.random()*(Bound.RIGHT*2))-Bound.RIGHT;
+y= (Math.random()*(Bound.DOWN*2))-Bound.DOWN;
+}
+WeaponDrops.push(new WeaponDrop(wepindex,x,y));
+},
+orderWave: function(){
+if(this.pending<=0){
+this.pending = 3000;
+this.wave += 1;
+this.spawnWave(this.wave);
+}
+else{
+this.pending += -delay;
+if(this.pending<0){
+this.pending = 0;
+}
+}
+},
+spawnWave: function(waveNumber){
+console.log("Spawning Wave "+waveNumber);
+Notify("Wave "+waveNumber);
+SpawnRandom("NORMAL",(waveNumber*2)+10);
+}
+}
+function SpawnRandom(type,amount){
+for(var i = 0;i<amount;i++){
+var x = (Math.random()*(Bound.RIGHT*2))-Bound.RIGHT;
+var y = (Math.random()*(Bound.DOWN*2))-Bound.DOWN;
+while(Math.sqrt(Math.pow(Player.x-x,2)+Math.pow(Player.y-y,2))<800){
+x= (Math.random()*(Bound.RIGHT*2))-Bound.RIGHT;
+y= (Math.random()*(Bound.DOWN*2))-Bound.DOWN;
+}
+EnemyManager.Spawn(type,x,y);
+}
+}
+function Enemy(x,y,speed,width,height,color,hp,hit,name = ""){
+this.x = x;
+this.y = y;
+this.rotation=0;
+this.speed=speed*(delay/1000)
+this.width = width;
+this.height = height;
+this.color = color;
+this.hp = hp;
+this.maxhp = hp;
+this.id = generateId();
+this.hit = hit;
+this.name = name;
+}
+Enemy.prototype.draw = function(){
+draw.fillStyle = this.color;
+draw.fillRect(this.x-Player.x+(centerx-(this.width/2)),this.y-Player.y+(centery-(this.height/2)),this.width,this.height);
+}
+Enemy.prototype.drawHp = function(){
+draw.fillStyle = "#00FF00";
+draw.fillRect(this.x-Player.x+(centerx-(this.width/2)),this.y-Player.y+(centery-(this.height/2))-(this.height/5),this.width*(this.hp/this.maxhp),5);
+draw.fillStyle = "#FF0000";
+draw.fillRect(this.x-Player.x+(centerx-(this.width/2))+this.width*(this.hp/this.maxhp),this.y-Player.y+(centery-(this.height/2))-(this.height/5),this.width*((this.maxhp-this.hp)/this.maxhp),5);
+}
+Enemy.prototype.drawName = function(){
+draw.font = "30px Arial";
+draw.fillStyle = "rgba(0, 0, 0, 1)";
+draw.fillText(this.name,centerx-Player.x+this.x,centery-Player.y+this.y-this.height);
+}
+Enemy.prototype.chase = function(){
+var targetX = Player.x;
+var targetY = Player.y;
+this.rotation = Math.atan2(targetY - this.y, targetX - this.x);
+    this.x += Math.cos(this.rotation) * this.speed;
+    this.y += Math.sin(this.rotation) * this.speed;
+}
+Enemy.prototype.disperse = function(){
+var lowDist = 10000000000;
+var lowX = 0;
+if(dist<=lowDist){
+lowDist=dist;
+lowX=newList[i].x;
+lowY=newList[i].y;
+}
+var lowY = 0;
+for(var i = 0;i<Enemies.length;i++){
+if(Enemies.findIndex((e)=>e==this)!=i){
+var newX = Enemies[i].x-this.x;
+var newY = Enemies[i].y-this.y;
+var dist = Math.sqrt(Math.pow(newX, 2) + Math.pow(newY, 2));
+if(dist<=lowDist){
+lowDist=dist;
+lowX=newX;
+lowY=newY;
+}
+}
+}
+if(lowDist<this.width*1.2){
+var disrotation = 0;
+disrotation = Math.atan2(-lowY,-lowX);
+this.x += Math.cos(disrotation) * this.speed;
+this.y += Math.sin(disrotation) * this.speed;
+}
+}
+Enemy.prototype.damage = function(damage){
+if(this.hp>damage){
+this.hp-=damage;
+}
+else{
+this.hp=0;
+}
+if(this.hp<=0){
+Enemies.splice(Enemies.findIndex((x)=>x==this),1);
+}
+}
+function lerp (start, end, amt){
+  return (1-amt)*start+amt*end
+}
+function generateId(){
+var id = Math.round(Math.random()*1000000000);
+while(Enemies.findIndex((x)=>x.id==id)>=0){
+id = Math.round(Math.random()*1000000000);
+}
+return id;
+}
+function SquareBullet(x,y,speed,size,color,rotation,damage,pierce = false){
+this.x = x;
+this.y = y;
+this.speed = speed;
+this.size = size;
+this.color = color;
+this.rotation = rotation;
+this.damage = damage;
+this.pierce = pierce;
+this.pierceIds = [];
+}
+SquareBullet.prototype.draw = function(){
+draw.fillStyle = this.color;
+draw.fillRect(this.x-Player.x+(centerx-(this.size/2)),this.y-Player.y+(centery-(this.size/2)),this.size,this.size);
+}
+SquareBullet.prototype.step = function(){
+this.x += Math.cos(this.rotation) * this.speed;
+this.y += Math.sin(this.rotation) * this.speed;
+return this.checkCollision();
+}
+SquareBullet.prototype.checkCollision = function(){
+for(var i = 0;i<Enemies.length;i++){
+if(checkCollision(this.x,this.y,this.size,this.size,Enemies[i].x,Enemies[i].y,Enemies[i].width,Enemies[i].height)&&!this.pierceIds.includes(Enemies[i].id)){
+Enemies[i].damage(this.damage);
+if(!this.pierce){
+Bullets.splice(Bullets.findIndex((x)=>x==this),1);
+return true;
+}
+else if(Enemies[i]!=null){
+this.pierceIds.push(Enemies[i].id);
+}
+}
+}
+return false;
+}
+function bind(){
+if(Player.x+(Player.width/2)>Bound.RIGHT){Player.x=Bound.RIGHT-(Player.width/2)}
+if(Player.x-(Player.width/2)<-Bound.LEFT){Player.x=-Bound.LEFT+(Player.width/2)}
+if(Player.y+(Player.height/2)>Bound.UP){Player.y=Bound.UP-(Player.height/2)}
+if(Player.y-(Player.height/2)<-Bound.DOWN){Player.y=-Bound.DOWN+(Player.height/2)}
+for(var i = 0;i<Enemies.length;i++){
+var enemy = Enemies[i];
+if(enemy.x+(enemy.width/2)>Bound.RIGHT){enemy.x=Bound.RIGHT-(enemy.width/2)}
+if(enemy.x-(enemy.width/2)<-Bound.LEFT){enemy.x=-Bound.LEFT+(enemy.width/2)}
+if(enemy.y+(enemy.height/2)>Bound.UP){enemy.y=Bound.UP-(enemy.height/2)}
+if(enemy.y-(enemy.height/2)<-Bound.DOWN){enemy.y=-Bound.DOWN+(enemy.height/2)}
+}
+}
+function drawCanvas(){
+for(var i = 0;i<Bullets.length;i++){
+Bullets[i].draw();
+}
+for(var i = 0;i<WeaponDrops.length;i++){
+WeaponDrops[i].draw();
+}
+for(var i = 0;i<Enemies.length;i++){
+Enemies[i].draw();
+}
+for(var i = 0;i<Enemies.length;i++){
+Enemies[i].drawName();
+}
+Player.draw();
+Bound.draw();
+for(var i = 0;i<Enemies.length;i++){
+Enemies[i].drawHp();
+}
+Player.drawHp();
+Message.draw();
+}
+function checkCollision(rect1x,rect1y,rect1width,rect1height,rect2x,rect2y,rect2width,rect2height){
+if (rect1x < rect2x + rect2width &&
+   rect1x + rect1width > rect2x &&
+   rect1y < rect2y + rect2height &&
+   rect1y + rect1height > rect2y) {
+   return true;
+}
+else{
+return false;
+}
+}
+function input(){
+if(Key.isDown(Key.LEFT)){Player.x+=-Player.realspeed;}
+if(Key.isDown(Key.RIGHT)){Player.x+=Player.realspeed;}
+if(Key.isDown(Key.UP)){Player.y-=Player.realspeed;}
+if(Key.isDown(Key.DOWN)){Player.y+=Player.realspeed;}
+}
+function clear(){
+draw.clearRect(0,0,canvas.width,canvas.height);
+}
+function gameOver(){
+location.reload();
+}
+function update(){
+clear();
+input();
+WeaponManager.tick();
+SpawnManager.tick();
+if(Enemies.length<=0){
+SpawnManager.orderWave();
+}
+bind();
+document.getElementById("HUD").innerHTML="X: "+Math.round(Player.x)+" Y: "+Math.round(Player.y);
+for(var i = 0;i<Enemies.length;i++){
+Enemies[i].disperse();
+Enemies[i].chase();
+}
+drawCanvas();
+Player.checkEnemyCollision();
+for(var i =0;i<Bullets.length;i++){
+if(Bullets[i].step()==false){
+if(Bullets[i].x+(Bullets[i].size/2)>Bound.RIGHT||
+Bullets[i].x-(Bullets[i].size/2)<-Bound.LEFT||
+Bullets[i].y+(Bullets[i].size/2)>Bound.UP||
+Bullets[i].y-(Bullets[i].size/2)<-Bound.DOWN){
+Bullets.splice(i,1);
+}
+}
+}
+setTimeout(function(){update();},delay);
+}
+</script>
